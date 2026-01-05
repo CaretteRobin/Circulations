@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Circulations - V&eacute;los, m&eacute;t&eacute;o et air en temps r&eacute;el (Nancy)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero__badge">Temps r&eacute;el / fetch asynchrone</div>
+    <h1>Circulations &agrave; Nancy</h1>
+    <p class="hero__lead">
+      V&eacute;rifier en un coup d&apos;&oelig;il la disponibilit&eacute; des v&eacute;los partag&eacute;s, la qualit&eacute; de l&apos;air,
+      et la m&eacute;t&eacute;o &agrave; partir de la g&eacute;olocalisation IP du client.
+    </p>
+    <div class="hero__meta">
+      <span id="clock">--:--</span>
+      <span class="hero__meta-dot"></span>
+      <span>Data auto rafra&icirc;chie &agrave; chaque chargement</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="cards">
+      <article class="card">
+        <div class="card__title">Position d&eacute;tect&eacute;e</div>
+        <div class="card__content" id="location-card">
+          <p id="location-label">Recherche en cours&hellip;</p>
+          <p class="muted">IP: <span id="ip-address" class="breakable">-</span></p>
+          <p class="muted">Coordonn&eacute;es: <span id="location-coords" class="breakable">-</span></p>
+          <p class="muted">Horodatage: <span id="location-updated">-</span></p>
+          <div class="actions">
+            <button class="btn" id="btn-refresh-ip">Relancer la g&eacute;oloc IP</button>
+            <button class="btn btn-alt" id="btn-force-nancy">Forcer Nancy</button>
+          </div>
+          <p class="muted tiny">La g&eacute;olocalisation IP reste approximative (d&eacute;pend de l&apos;op&eacute;rateur). Forcez Nancy si besoin.</p>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card__title">M&eacute;t&eacute;o maintenant</div>
+        <div class="card__content" id="weather-card">
+          <div class="stacked">
+            <div class="metric" id="weather-icon">⛅</div>
+            <div>
+              <div class="metric" id="weather-temp">-- &deg;C</div>
+              <div class="muted" id="weather-text">Lecture en cours&hellip;</div>
+            </div>
+          </div>
+          <div class="chips">
+            <span id="weather-wind" class="chip">Vent: -- km/h</span>
+            <span id="weather-rain" class="chip">Pr&eacute;cip.: -- mm</span>
+            <span id="weather-apparent" class="chip">Ressenti: -- &deg;C</span>
+          </div>
+          <p class="muted">Mise &agrave; jour: <span id="weather-updated">-</span></p>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card__title">Qualit&eacute; de l&apos;air</div>
+        <div class="card__content" id="air-card">
+          <div class="stacked">
+            <div class="metric" id="air-icon">🌫️</div>
+            <div>
+              <div class="metric" id="air-index">-- AQI</div>
+              <div class="muted" id="air-text">Lecture en cours&hellip;</div>
+            </div>
+          </div>
+          <p class="muted">Horodatage: <span id="air-updated">-</span></p>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card__title">V&eacute;los partag&eacute;s</div>
+        <div class="card__content" id="bikes-card">
+          <div class="metric" id="bike-count">-- stations</div>
+          <div class="muted" id="bike-availability">Chargement des disponibilit&eacute;s&hellip;</div>
+          <p class="muted">Derni&egrave;re mesure: <span id="bike-updated">-</span></p>
+        </div>
+      </article>
+    </section>
+
+    <section class="layout-two">
+      <div class="panel map-panel">
+        <div class="panel__head">
+          <h2>Carte Leaflet</h2>
+          <p class="muted">Centre sur votre position IP + stations V&eacute;loStan&apos;lib.</p>
+        </div>
+        <div id="map" role="img" aria-label="Carte des stations V&eacute;loStan et de la position actuelle"></div>
+        <div class="legend">
+          <span class="legend__item"><span class="dot dot--self"></span> Vous</span>
+          <span class="legend__item"><span class="dot dot--bikes"></span> Station v&eacute;lo</span>
+          <span class="legend__item"><span class="dot dot--empty"></span> Peu de v&eacute;los</span>
+        </div>
+      </div>
+
+      <div class="panel side-panel">
+        <div class="panel__head">
+          <h3>Stations proches</h3>
+          <p class="muted">Tri&eacute;es par distance depuis votre position.</p>
+        </div>
+        <ul id="station-list" class="station-list">
+          <li class="muted">En attente des donn&eacute;es temps r&eacute;el&hellip;</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="cards">
+      <article class="card wide">
+        <div class="card__title">Synth&egrave;se d&eacute;cisionnelle</div>
+        <div class="card__content" id="decision">
+          <p>En attente de donn&eacute;es pour vous dire si le v&eacute;lo est recommand&eacute;.</p>
+        </div>
+      </article>
+
+      <article class="card wide">
+        <div class="card__title">API utilis&eacute;es</div>
+        <div class="card__content api-list">
+          <div>
+            <strong>G&eacute;olocalisation IP:</strong>
+            <a id="api-ip" href="https://ipapi.co/json/" target="_blank" rel="noopener">https://ipapi.co/json/</a>
+          </div>
+          <div>
+            <strong>Stations V&eacute;loStan&apos;lib (CityBikes):</strong>
+            <a id="api-bike" href="https://api.citybik.es/v2/networks/velostanlib" target="_blank" rel="noopener">https://api.citybik.es/v2/networks/velostanlib</a>
+          </div>
+          <div>
+            <strong>M&eacute;t&eacute;o (Open-Meteo):</strong>
+            <a id="api-weather" href="#" target="_blank" rel="noopener">URL g&eacute;n&eacute;r&eacute;e avec vos coordonn&eacute;es</a>
+          </div>
+          <div>
+            <strong>Qualit&eacute; de l&apos;air (Open-Meteo AQ):</strong>
+            <a id="api-air" href="#" target="_blank" rel="noopener">URL g&eacute;n&eacute;r&eacute;e avec vos coordonn&eacute;es</a>
+          </div>
+          <div class="muted tiny">Toutes les requ&ecirc;tes sont effectu&eacute;es avec fetch en JavaScript asynchrone.</div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel__head">
+        <h3>Journal et diagnostics</h3>
+        <p class="muted">Affiche les erreurs r&eacute;seau &eacute;ventuelles et les horodatages.</p>
+      </div>
+      <ul id="status-log" class="status-log">
+        <li class="muted">En attente d&apos;&eacute;v&egrave;nements&hellip;</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>
+      <div class="muted tiny">Projet Interop - circulations.html</div>
+      <div class="muted tiny">D&eacute;ployez ce fichier dans un r&eacute;pertoire Interop/ sur webetu.</div>
+    </div>
+    <div>
+      <a id="git-link" href="https://github.com/votre-compte/votre-depot" target="_blank" rel="noopener">D&eacute;p&ocirc;t public &agrave; renseigner</a>
+    </div>
+  </footer>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
