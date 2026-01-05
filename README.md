@@ -1,35 +1,39 @@
 # Circulations (Interop)
 
-Page HTML statique permettant de croiser :
-- géolocalisation IP (fallback Nancy)
-- disponibilité des vélos VeloStan'lib (CityBikes)
-- météo et qualité de l'air (Open-Meteo)
-- affichage Leaflet avec stations proches triées par distance.
+Page statique croisant géoloc IP, disponibilité VéloStan'lib, météo et qualité de l'air, avec carte Leaflet.
 
-## Structure
+## Fichiers
 - `circulations.html` : page principale.
 - `styles.css` : styles.
-- `app.js` : logique fetch + affichages.
+- `app.js` : logique fetch + affichage.
 
 ## Lancer en local
 ```bash
 cd Interop
 python3 -m http.server 8000
 ```
-Puis ouvrir `http://localhost:8000/circulations.html` (nécessite le réseau pour les API).
+Ouvrir `http://localhost:8000/circulations.html` (nécessite réseau pour les API).
 
 ## Déploiement webetu
-Uploader le dossier `Interop/` tel quel. Le fichier attendu est `Interop/circulations.html` (avec `styles.css` et `app.js` à côté).
+Uploader le dossier `Interop/` tel quel. Le fichier attendu est `Interop/circulations.html` avec `styles.css` et `app.js` à côté.
+Rappel: webetu sert des fichiers statiques; pas besoin de build, gardez les chemins relatifs inchangés.
 
-## Boutons utiles
-- **Relancer la géoloc IP** : retente l'IP (peut être éloignée selon l'opérateur).
-- **Forcer Nancy** : recentre la carte et les calculs sur Nancy si l'IP est imprécise.
+## Géoloc IP (plus précise)
+- IP publique via `https://api64.ipify.org?format=json`.
+- Géoloc via `http://ip-api.com/json/{ip}` (fallback `https://ipwho.is/{ip}` si 403/erreur).
+- Si IP locale (127.0.0.1/::1), on force une IP de Nancy pour tester.
+- Si l'IP géolocalisée n'est pas en 54/Nancy, fallback sur l'IUT (48.6815, 6.1737).
 
-## APIs utilisées
-- IP : https://ipapi.co/json/
+## APIs
+- IP publique : https://api64.ipify.org?format=json
+- Géoloc IP : http://ip-api.com/json/{ip} (fallback https://ipwho.is/{ip})
 - VéloStan'lib : https://api.citybik.es/v2/networks/velostanlib
 - Météo : https://api.open-meteo.com/v1/forecast
 - Air : https://air-quality-api.open-meteo.com/v1/air-quality
 
-## Note
-Les liens de dépôt git doivent être ajustés dans le pied de page si besoin.***
+## Boutons utiles
+- **Relancer la géoloc IP** : retente la détection.
+- **Forcer Nancy** : recentre sur Nancy si l'IP est imprécise.
+
+## Réalisation
+Robin Carette, Noé Franoux, Paul Andrieu, Valentino Lambert.

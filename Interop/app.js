@@ -1,5 +1,7 @@
 const endpoints = {
-  ip: "https://ipapi.co/json/",
+  ip: "https://api64.ipify.org?format=json",
+  ipGeo: (ip) => `http://ip-api.com/json/${encodeURIComponent(ip)}`,
+  ipGeoFallback: (ip) => `https://ipwho.is/${encodeURIComponent(ip)}`,
   bikes: "https://api.citybik.es/v2/networks/velostanlib",
   weather: ({ lat, lon }) =>
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code&hourly=precipitation_probability&timezone=auto`,
@@ -8,7 +10,8 @@ const endpoints = {
 };
 
 const defaults = {
-  coords: { lat: 48.692054, lon: 6.184417 }, // Nancy centre
+  coords: { lat: 48.6815, lon: 6.1737 }, // IUT Nancy
+  devIp: "78.125.143.125",
 };
 
 const state = {
@@ -16,6 +19,7 @@ const state = {
   weather: null,
   air: null,
   bikes: [],
+  ip: null,
 };
 
 let map;
@@ -92,29 +96,32 @@ async function fetchJSON(url, label) {
 }
 
 async function loadLocation() {
-  try {
-    const data = await fetchJSON(endpoints.ip, "Geoloc IP");
-    const lat = Number(data.latitude);
-    const lon = Number(data.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      throw new Error("Coordonnees manquantes");
-    }
+  const ipRaw = await resolvePublicIp();
+  state.ip = ipRaw;
+  const ipForLookup =
+    ipRaw === "127.0.0.1" || ipRaw === "::1" ? defaults.devIp : ipRaw;
 
-    state.coords = { lat, lon };
+  try {
+    const geo = await geolocateIp(ipForLookup);
+    const lat = Number(geo.lat);
+    const lon = Number(geo.lon);
+    const city = geo.city;
+    const zip = geo.zip;
+    const inNancy = zip?.startsWith?.("54") || city === "Nancy";
+    const coords = inNancy ? { lat, lon } : { ...defaults.coords };
+
+    state.coords = coords;
     document.getElementById("location-label").textContent =
-      `${data.city || "Ville inconnue"}, ${data.region || ""} ${data.country_name || ""}`.trim();
-    document.getElementById("ip-address").textContent = data.ip || "n/a";
-    document.getElementById("location-coords").textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      `${city || "Ville inconnue"}${zip ? ` (${zip})` : ""}`;
+    document.getElementById("ip-address").textContent = ipRaw || "n/a";
+    document.getElementById("location-coords").textContent = `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}`;
     document.getElementById("location-updated").textContent = humanDate(new Date());
-    const distToNancy = distanceKm(lat, lon, defaults.coords.lat, defaults.coords.lon);
-    if (distToNancy > 20) {
-      logStatus(
-        `Position IP detectee a ${distToNancy.toFixed(1)} km de Nancy (opérateur). Forcer Nancy si besoin.`,
-        "warn"
-      );
+
+    if (!inNancy) {
+      logStatus("IP detectee hors Nancy, fallback IUT.", "warn");
     }
   } catch (err) {
-    logStatus("IP non joignable, fallback sur Nancy.", "warn");
+    logStatus("Geoloc IP indisponible, fallback IUT.", "warn");
     useForcedCoords(defaults.coords, "Nancy (fallback)");
     document.getElementById("ip-address").textContent = "non detectee";
   }
@@ -156,6 +163,43 @@ function useForcedCoords(coords, label = "Position forcée") {
   if (map && userMarker) {
     userMarker.setLatLng([coords.lat, coords.lon]);
     map.setView([coords.lat, coords.lon], 14);
+  }
+}
+
+async function resolvePublicIp() {
+  try {
+    const data = await fetchJSON(endpoints.ip, "IP publique (ipify)");
+    return data.ip || "127.0.0.1";
+  } catch (err) {
+    logStatus("Impossible de lire l'IP publique, utilisation 127.0.0.1", "warn");
+    return "127.0.0.1";
+  }
+}
+
+async function geolocateIp(ip) {
+  try {
+    const primary = await fetchJSON(endpoints.ipGeo(ip), "ip-api");
+    if (primary.status === "success") {
+      return {
+        lat: primary.lat,
+        lon: primary.lon,
+        city: primary.city,
+        zip: primary.zip,
+      };
+    }
+    throw new Error("ip-api status fail");
+  } catch (err) {
+    logStatus("ip-api indisponible, tentative ipwho.is", "warn");
+    const fallback = await fetchJSON(endpoints.ipGeoFallback(ip), "ipwho.is");
+    if (fallback.success === false) {
+      throw new Error("ipwho.is fail");
+    }
+    return {
+      lat: fallback.latitude,
+      lon: fallback.longitude,
+      city: fallback.city,
+      zip: fallback.postal,
+    };
   }
 }
 
@@ -330,6 +374,13 @@ function updateApiLinks() {
   document.getElementById("api-weather").textContent = weatherURL;
   document.getElementById("api-air").href = airURL;
   document.getElementById("api-air").textContent = airURL;
+  document.getElementById("api-ipify").href = endpoints.ip;
+  document.getElementById("api-ipify").textContent = endpoints.ip;
+  const ipForLink = state.ip ? state.ip : "demo";
+  document.getElementById("api-ipapi").href = endpoints.ipGeo(ipForLink);
+  document.getElementById("api-ipapi").textContent = endpoints.ipGeo(ipForLink);
+  document.getElementById("api-ipwho").href = endpoints.ipGeoFallback(ipForLink);
+  document.getElementById("api-ipwho").textContent = endpoints.ipGeoFallback(ipForLink);
 }
 
 function updateDecision() {
