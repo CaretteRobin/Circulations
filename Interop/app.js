@@ -1,7 +1,7 @@
 const endpoints = {
   ip: "https://api64.ipify.org?format=json",
-  ipGeo: (ip) => `http://ip-api.com/json/${encodeURIComponent(ip)}`,
-  ipGeoFallback: (ip) => `https://ipwho.is/${encodeURIComponent(ip)}`,
+  ipGeoPrimary: (ip) => `https://ipwho.is/${encodeURIComponent(ip)}`,
+  ipGeoFallback: (ip) => `https://ip-api.com/json/${encodeURIComponent(ip)}`,
   bikes: "https://api.citybik.es/v2/networks/velostanlib",
   weather: ({ lat, lon }) =>
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code&hourly=precipitation_probability&timezone=auto`,
@@ -106,6 +106,7 @@ async function loadLocation() {
 
   try {
     const geo = await geolocateIp(ipForLookup);
+    if (!geo) throw new Error("Geoloc IP failed");
     const lat = Number(geo.lat);
     const lon = Number(geo.lon);
     const city = geo.city;
@@ -180,28 +181,33 @@ async function resolvePublicIp() {
 
 async function geolocateIp(ip) {
   try {
-    const primary = await fetchJSON(endpoints.ipGeo(ip), "ip-api");
-    if (primary.status === "success") {
+    const primary = await fetchJSON(endpoints.ipGeoPrimary(ip), "ipwho.is");
+    if (primary && primary.success !== false) {
       return {
-        lat: primary.lat,
-        lon: primary.lon,
+        lat: primary.latitude,
+        lon: primary.longitude,
         city: primary.city,
-        zip: primary.zip,
+        zip: primary.postal,
       };
     }
-    throw new Error("ip-api status fail");
+    throw new Error("ipwho.is fail");
   } catch (err) {
-    logStatus("ip-api indisponible, tentative ipwho.is", "warn");
-    const fallback = await fetchJSON(endpoints.ipGeoFallback(ip), "ipwho.is");
-    if (fallback.success === false) {
-      throw new Error("ipwho.is fail");
+    logStatus("ipwho.is indisponible, tentative ip-api (https)", "warn");
+    try {
+      const fallback = await fetchJSON(endpoints.ipGeoFallback(ip), "ip-api");
+      if (fallback.status !== "success") {
+        throw new Error("ip-api fail");
+      }
+      return {
+        lat: fallback.lat,
+        lon: fallback.lon,
+        city: fallback.city,
+        zip: fallback.zip,
+      };
+    } catch (e) {
+      logStatus("Geoloc IP indisponible, aucune coord IP utilisee.", "warn");
+      return null;
     }
-    return {
-      lat: fallback.latitude,
-      lon: fallback.longitude,
-      city: fallback.city,
-      zip: fallback.postal,
-    };
   }
 }
 
@@ -405,10 +411,10 @@ function updateApiLinks() {
   document.getElementById("api-ipify").href = endpoints.ip;
   document.getElementById("api-ipify").textContent = endpoints.ip;
   const ipForLink = state.ip ? state.ip : "demo";
-  document.getElementById("api-ipapi").href = endpoints.ipGeo(ipForLink);
-  document.getElementById("api-ipapi").textContent = endpoints.ipGeo(ipForLink);
-  document.getElementById("api-ipwho").href = endpoints.ipGeoFallback(ipForLink);
-  document.getElementById("api-ipwho").textContent = endpoints.ipGeoFallback(ipForLink);
+  document.getElementById("api-ipapi").href = endpoints.ipGeoFallback(ipForLink);
+  document.getElementById("api-ipapi").textContent = endpoints.ipGeoFallback(ipForLink);
+  document.getElementById("api-ipwho").href = endpoints.ipGeoPrimary(ipForLink);
+  document.getElementById("api-ipwho").textContent = endpoints.ipGeoPrimary(ipForLink);
 }
 
 function updateDecision() {

@@ -19,13 +19,13 @@ Uploader le dossier `Interop/` tel quel. Le fichier attendu est `Interop/circula
 
 ## Géoloc IP (affichée, non utilisée pour les calculs)
 - IP publique via `https://api64.ipify.org?format=json`.
-- Géoloc via `http://ip-api.com/json/{ip}` (fallback `https://ipwho.is/{ip}` si 403/erreur).
+- Géoloc via `https://ipwho.is/{ip}` (fallback `https://ip-api.com/json/{ip}` en dernier recours).
 - Si IP locale (127.0.0.1/::1), on force une IP de Nancy pour tester.
 - Données principales toujours centrées sur l'IUT (48.68291944294635, 6.161064517333171) pour éviter les dérives de géoloc IP.
 
 ## APIs
 - IP publique : https://api64.ipify.org?format=json
-- Géoloc IP : http://ip-api.com/json/{ip} (fallback https://ipwho.is/{ip})
+- Géoloc IP : https://ipwho.is/{ip} (fallback https://ip-api.com/json/{ip})
 - VéloStan'lib : https://api.citybik.es/v2/networks/velostanlib
 - Météo : https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code&hourly=precipitation_probability&timezone=auto
 - Air : https://air-quality-api.open-meteo.com/v1/air-quality?latitude={lat}&longitude={lon}&hourly=european_aqi,pm10,pm2_5,carbon_monoxide,ozone,nitrogen_dioxide,sulphur_dioxide&timezone=auto
