@@ -10,12 +10,13 @@ const endpoints = {
 };
 
 const defaults = {
-  coords: { lat: 48.6815, lon: 6.1737 }, // IUT Nancy
+  coords: { lat: 48.68291944294635, lon: 6.161064517333171 }, // IUT Nancy Charlemagne
   devIp: "78.125.143.125",
 };
 
 const state = {
   coords: { ...defaults.coords },
+  ipCoords: null,
   weather: null,
   air: null,
   bikes: [],
@@ -25,6 +26,7 @@ const state = {
 let map;
 let stationLayer;
 let userMarker;
+let ipMarker;
 
 document.addEventListener("DOMContentLoaded", () => {
   startClock();
@@ -33,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function init() {
   wireActions();
+  setReferenceInfo();
   await loadLocation();
   initMap();
   await refreshData();
@@ -107,23 +110,19 @@ async function loadLocation() {
     const lon = Number(geo.lon);
     const city = geo.city;
     const zip = geo.zip;
-    const inNancy = zip?.startsWith?.("54") || city === "Nancy";
-    const coords = inNancy ? { lat, lon } : { ...defaults.coords };
-
-    state.coords = coords;
+    state.ipCoords = { lat, lon };
     document.getElementById("location-label").textContent =
       `${city || "Ville inconnue"}${zip ? ` (${zip})` : ""}`;
     document.getElementById("ip-address").textContent = ipRaw || "n/a";
-    document.getElementById("location-coords").textContent = `${coords.lat.toFixed(4)}, ${coords.lon.toFixed(4)}`;
+    document.getElementById("location-coords").textContent = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
     document.getElementById("location-updated").textContent = humanDate(new Date());
-
-    if (!inNancy) {
-      logStatus("IP detectee hors Nancy, fallback IUT.", "warn");
-    }
+    updateIpMarker();
   } catch (err) {
     logStatus("Geoloc IP indisponible, fallback IUT.", "warn");
     useForcedCoords(defaults.coords, "Nancy (fallback)");
     document.getElementById("ip-address").textContent = "non detectee";
+    state.ipCoords = null;
+    updateIpMarker();
   }
 }
 
@@ -148,8 +147,10 @@ function initMap() {
       weight: 2,
     }
   )
-    .bindPopup("Votre position IP")
+    .bindPopup("R&eacute;f&eacute;rence IUT Nancy")
     .addTo(map);
+
+  updateIpMarker();
 }
 
 function useForcedCoords(coords, label = "Position forcée") {
@@ -164,6 +165,7 @@ function useForcedCoords(coords, label = "Position forcée") {
     userMarker.setLatLng([coords.lat, coords.lon]);
     map.setView([coords.lat, coords.lon], 14);
   }
+  setReferenceInfo();
 }
 
 async function resolvePublicIp() {
@@ -200,6 +202,31 @@ async function geolocateIp(ip) {
       city: fallback.city,
       zip: fallback.postal,
     };
+  }
+}
+
+function updateIpMarker() {
+  if (!map) return;
+  if (ipMarker) {
+    ipMarker.remove();
+    ipMarker = null;
+  }
+  if (!state.ipCoords) return;
+  ipMarker = L.circleMarker([state.ipCoords.lat, state.ipCoords.lon], {
+    radius: 8,
+    color: "#1d4ed8",
+    fillColor: "#1d4ed8",
+    fillOpacity: 0.85,
+    weight: 2,
+  })
+    .bindPopup("Localisation IP d&eacute;tect&eacute;e")
+    .addTo(map);
+}
+
+function setReferenceInfo() {
+  const el = document.getElementById("ref-coords");
+  if (el) {
+    el.textContent = `${defaults.coords.lat}, ${defaults.coords.lon}`;
   }
 }
 
@@ -348,6 +375,7 @@ function drawStations(stations) {
 
   userMarker.setLatLng([state.coords.lat, state.coords.lon]);
   map.setView([state.coords.lat, state.coords.lon], 14);
+  updateIpMarker();
 
   stations.forEach((s) => {
     const color = s.bikes <= 2 ? "#ff6b6b" : "#2dd4bf";
